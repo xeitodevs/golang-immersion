@@ -55,13 +55,6 @@ func newServer(port string) *server {
 	return &server{httpServer: httpServer}
 }
 
-func testRig(f func()) {
-	server := newServer("3000")
-	server.listenAndServe()
-	defer server.shutdown()
-	f()
-}
-
 func main() {
 
 	// Here comes the chan type, the Jackie Chan of concurrency(sorry). A "Channel"
