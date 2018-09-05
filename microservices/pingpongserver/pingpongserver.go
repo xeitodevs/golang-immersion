@@ -6,6 +6,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 const port = "3333"
@@ -56,15 +59,13 @@ func newServer(port string) *server {
 }
 
 func main() {
-
-	// Here comes the chan type, the Jackie Chan of concurrency(sorry). A "Channel"
-	// is a typed pipe through which you can send and receive values across goroutines.
-	// We are going to use channel as a block in the main goroutine.
-	// This particular channel is of type struct{}. An empty struct occupies zero bytes
-	// of storage and since we aren't going to actually send or receive any values it's used.
-	// It's totally cool to have chan int, chan bool chan MyStruct etc.
-
-	ch := make(chan struct{})
+	// a channel to receive unix signals
+	sigs := make(chan os.Signal, 1)
+	// a channel to receive a stop confirmation on interrupt
+	done := make(chan bool, 1)
+	// signal.Notify is a method to create a channel which receives
+	// SIGINT, SIGTERM unix signals.
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	moveAlong := func() {
 		fmt.Println("Not the droid you lookin for...")
@@ -72,15 +73,17 @@ func main() {
 
 	server := newServer(port)
 	server.listenAndServe()
-	defer server.shutdown()
 	defer moveAlong()
 
-	// This channel will wait to receive a value(and in our case it will wait for
-	// eternity). While it's waiting further execution of the main goroutine will remain
-	// blocked hence serving our purpose. To unblock this channel someone needs to
-	// do : ch <- someVal or close(ch). More of this coming up.
-	// Now you can do : go run simpleserver_2.go  and expect it to work.
-	// Goto http://localhost:3333/another to check whether it did.
-	// To exit : Ctrl-C works but that's not nice. We can be more graceful than that.
-	<-ch
+	go func() {
+		sig := <-sigs
+		fmt.Println()
+		fmt.Println(sig)
+		server.shutdown()
+		done <- true
+	}()
+	// Ctrl-C sends a SIGINT signal to the program
+	fmt.Println("Ctrl-C to interrupt...")
+	<-done
+	fmt.Println("Exiting...")
 }
